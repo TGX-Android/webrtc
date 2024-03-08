@@ -380,11 +380,14 @@ void RtpTransport::DemuxPacket(CopyOnWriteBuffer packet,
     return;
   }
 
+  bool isUnresolved = true;
   if (!rtp_demuxer_.OnRtpPacket(parsed_packet)) {
+    isUnresolved = true;
     RTC_LOG(LS_VERBOSE) << "Failed to demux RTP packet: "
                         << RtpDemuxer::DescribePacket(parsed_packet);
     NotifyUnDemuxableRtpPacketReceived(parsed_packet);
   }
+  ProcessRtpPacket(parsed_packet, isUnresolved);
 }
 
 bool RtpTransport::IsTransportWritable() {

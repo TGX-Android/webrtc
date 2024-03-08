@@ -113,6 +113,8 @@ class RtpTransport : public RtpTransportInternal {
                               RtpPacketSinkInterface* sink) override;
 
   bool UnregisterRtpDemuxerSink(RtpPacketSinkInterface* sink) override;
+    
+  virtual void ProcessRtpPacket(webrtc::RtpPacketReceived const &packet, bool isUnresolved) {}
 
   void SetActivePayloadTypeDemuxing(bool enabled) override;
 
