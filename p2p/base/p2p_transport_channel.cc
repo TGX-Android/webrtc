@@ -1234,7 +1234,7 @@ void P2PTransportChannel::AddRemoteCandidate(const Candidate& candidate) {
     }
   }
 
-  if (new_remote_candidate.address().IsUnresolvedIP()) {
+  if (new_remote_candidate.address().IsUnresolvedIP() && !absl::EndsWith(new_remote_candidate.address().hostname(), ".reflector")) {
     // Don't do DNS lookups if the IceTransportPolicy is "none" or "relay".
     bool sharing_host = ((allocator_->candidate_filter() & CF_HOST) != 0);
     bool sharing_stun = ((allocator_->candidate_filter() & CF_REFLEXIVE) != 0);

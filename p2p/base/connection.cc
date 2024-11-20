@@ -1783,6 +1783,14 @@ void Connection::MaybeUpdateLocalCandidate(StunRequest* request,
   }
 
   for (const Candidate& candidate : port_->Candidates()) {
+    if (absl::EndsWith(candidate.address().hostname(), ".reflector")) {
+      Candidate testCandidate = candidate;
+      testCandidate.set_address(local_candidate_.address());
+      if (testCandidate == local_candidate_) {
+        return;
+      }
+    }
+
     if (candidate.address() == addr->GetAddress()) {
       if (local_candidate_ != candidate) {
         RTC_LOG(LS_INFO) << ToString()
