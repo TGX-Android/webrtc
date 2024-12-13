@@ -334,7 +334,10 @@ RtpVideoStreamReceiver2::RtpVideoStreamReceiver2(
       env_.field_trials().Lookup("WebRTC-ForcePlayoutDelay"));
 
   // Only construct the encrypted receiver if frame encryption is enabled.
-  if (config_.crypto_options.sframe.require_frame_encryption) {
+  // TGCALLS PATCH: also when a frame decryptor is set without
+  // require_frame_encryption (group call e2e: tgcalls installs one per stream).
+  if (config_.crypto_options.sframe.require_frame_encryption ||
+      frame_decryptor) {
     buffered_frame_decryptor_ = std::make_unique<BufferedFrameDecryptor>(
         this, this, env_.field_trials());
     if (frame_decryptor != nullptr) {
