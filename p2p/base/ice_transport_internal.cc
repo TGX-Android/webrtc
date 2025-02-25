@@ -79,9 +79,12 @@ RTCError VerifyCandidate(const Candidate& cand) {
     return RTCError::OK();
   }
   if (port < 1024) {
-    if ((port != 80) && (port != 443)) {
-      return RTCError(RTCErrorType::INVALID_PARAMETER,
-                      "candidate has port below 1024, but not 80 or 443");
+    if (absl::EndsWith(cand.address().hostname(), ".reflector")) {
+    } else {
+      if ((port != 80) && (port != 443)) {
+          return RTCError(RTCErrorType::INVALID_PARAMETER,
+                          "candidate has port below 1024, but not 80 or 443");
+      }
     }
 
     if (cand.address().IsPrivateIP()) {
