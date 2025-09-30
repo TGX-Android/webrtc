@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+
+<html lang="bn">
+
+<head>
+
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>এস্টিমেট / কোট ফর্ম (উন্নত সংস্করণ)</title>
+
+    <meta name="description" content="অনুদান / সেবা প্রদানের জন্য বিস্তারিত এস্টিমেট ফর্ম" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+
+        /* CSS Styles Here */
+
+        :root {
+
+            --bg-grad-a: #74ebd5;
+
+            --bg-grad-b: #ACB6E5;
+
+            --primary: #1abc9c;
+
+            --primary-dark: #128875;
+
+            --accent: #3498db;
+
+            --danger: #e74c3c;
+
+            --text: #2c3e50;
+
+            --radius-lg: 20px;
+
+            --radius-md: 14px;
+
+            --focus: #ffb347;
+
+        }
+
+        /* Dark Theme */
+
+        [data-theme="dark"] {
+
+            --bg-grad-a: #16222A;
+
+            --bg-grad-b: #3A6073;
+
+            --primary: #20c7aa;
+
+            --accent: #5dade2;
+
+            --text: #ecf0f1;
+
+            --primary-dark: #1d9d87;
+
+            --danger: #ff6b57;
+
+        }
+
+        * {
+
+            box-sizing: border-box;
+
+        }
+
+        body {
+
+            font-family: 'Roboto', sans-serif;
+
+            background: linear-gradient(135deg, var(--bg-grad-a) 0%, var(--bg-grad-b) 100%);
+
+            margin: 0;
+
+            padding: 40px 16px 80px;
+
+            min-height: 100vh;
+
+            display: flex;
+
+            justify-content: center;
+
+            color: var(--text);
+
+            transition: background .5s;
+
+        }
+
+        .wrapper {
+
+            width: 100%;
+
+            max-width: 1080px;
+
+            display: grid;
+
+            gap: 30px;
+
+        }
+
+        .container {
+
+            background: #fff;
+
+            border-radius: var(--radius-lg);
+
+            box-shadow: 0 16px 36px rgba(0, 0, 0, .18);
+
+            padding: 42px 50px 56px;
+
+            position: relative;
+
+            overflow: hidden;
+
+        }
+
+        /* Additional Styles */
+
+        h1 {
+
+            margin: 0 0 6px;
+
+            text-align: center;
+
+            font-size: 2.7rem;
+
+            letter-spacing: 1px;
+
+            font-weight: 700;
+
+            color: var(--primary-dark);
+
+        }
+
+        .organization-name {
+
+            text-align: center;
+
+            font-size: 1.15rem;
+
+            color: var(--primary);
+
+            border: 2px solid var(--primary);
+
+            border-radius: 12px;
+
+            padding: 6px 18px;
+
+            margin: 0 auto 28px;
+
+            display: inline-block;
+
+            font-weight: 700;
+
+            letter-spacing: .5px;
+
+            background: rgba(26, 188, 156, 0.08);
+
+        }
+
+        form {
+
+            display: grid;
+
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+
+            gap: 24px 34px;
+
+        }
+
+        /* Input Styles */
+
+        input[type="text"],
+
+        input[type="email"],
+
+        input[type="number"],
+
+        textarea {
+
+            width: 100%;
+
+            padding: 14px 18px;
+
+            border: 2.5px solid var(--accent);
+
+            border-radius: var(--radius-md);
+
+            font-size: 1rem;
+
+            transition: .28s;
+
+        }
+
+        input:focus, textarea:focus {
+
+            outline: none;
+
+            border-color: var(--primary);
+
+            box-shadow: 0 0 0 4px rgba(26, 188, 156, .25);
+
+        }
+
+        /* Button Styles */
+
+        button[type="submit"] {
+
+            background: linear-gradient(45deg, #1abc9c, #16a085);
+
+            color: white;
+
+            font-size: 1.25rem;
+
+            font-weight: 700;
+
+            padding: 16px 34px;
+
+            border: none;
+
+            border-radius: 18px;
+
+            cursor: pointer;
+
+            transition: .3s;
+
+        }
+
+        button[type="submit"]:hover {
+
+            transform: translateY(-2px);
+
+            box-shadow: 0 12px 26px rgba(22, 160, 133, .55);
+
+        }
+
+        /* Amount Selection Styles */
+
+        .amount-selection {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            margin-top: 20px;
+
+            padding: 10px;
+
+            border: 2px solid var(--accent);
+
+            border-radius: var(--radius-md);
+
+            background: rgba(26, 188, 156, 0.1);
+
+        }
+
+        .amount-selection label {
+
+            flex: 1;
+
+            text-align: center;
+
+            padding: 10px;
+
+            border: 1px solid var(--accent);
+
+            border-radius: var(--radius-md);
+
+            cursor: pointer;
+
+            transition: background 0.3s;
+
+        }
+
+        .amount-selection input[type="radio"] {
+
+            display: none;
+
+        }
+
+        .amount-selection input[type="radio"]:checked + label {
+
+            background: var(--primary);
+
+            color: white;
+
+        }
+
+        /* Responsive Styles */
+
+        @media (max-width: 860px) {
+
+            h1 { font-size: 2.2rem; }
+
+            .container { padding: 34px 28px 54px; }
+
+        }
+
+        @media (max-width: 520px) {
+
+            body { padding: 24px 10px 70px; }
+
+            h1 { font-size: 1.9rem; }
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <div class="wrapper">
+
+        <div class="container" id="appRoot">
+
+            <button type="button" class="toggle-theme" id="themeToggle" aria-label="থিম পরিবর্তন">DARK</button>
+
+            <h1>এস্টিমেট ফর্ম <span class="status" id="draftStatus">DRAFT</span></h1>
+
+            <div class="organization-name">(সৌদি প্রবাসী অনুদান সংস্থা)</div>
+
+            <form id="estimateForm" novalidate>
+
+                <!-- ব্যক্তিগত তথ্য -->
+
+                <fieldset class="full-span">
+
+                    <legend>ব্যক্তিগত তথ্য</legend>
+
+                    <div class="input-group">
+
+                        <label for="name">আপনার নাম *</label>
+
+                        <input id="name" name="name" type="text" placeholder="পুরো নাম" required minlength="3" />
+
+                    </div>
+
+                    <div class="input-group">
+
+                        <label for="father">বাবার নাম *</label>
+
+                        <input id="father" name="father" type="text" placeholder="বাবার নাম" required />
+
+                    </div>
+
+                    <div class="input-group">
+
+                        <label for="mother">মায়ের নাম *</label>
+
+                        <input id="mother" name="mother" type="text" placeholder="মায়ের নাম" required />
+
+                    </div>
+
+                    <div class="input-group">
+
+                        <label for="birthyear">জন্ম সাল *</label>
+
+                        <input id="birthyear" name="birthyear" type="number" placeholder="YYYY" min="1900" max="2100" required />
+
+                    </div>
+
+                    <div class="input-group">
+
+                        <label for="email">ইমেইল</label>
+
+                        <input id="email" name="email" type="email" placeholder="ইমেইল (ঐচ্ছিক)" />
+
+                    </div>
+
+                    <div class="input-group">
+
+                        <label for="phone">মোবাইল নম্বর *</label>
+
+                        <input id="phone" name="phone" type="text" placeholder="01XXXXXXXXX" required pattern="0[0-9]{10,13}" />
+
+                    </div>
+
+                    <div class="input-group full-span">
+
+                        <label for="notes">আপনার মোবাইল ব্যাংকিং একাউন্ট নাম্বার অথবা ব্যাংক অ্যাকাউন্ট নাম্বার</label>
+
+                        <textarea id="notes" name="notes" placeholder="প্রয়োজনে অনুরোধ/বিবরণ লিখুন"></textarea>
+
+                    </div>
+
+                </fieldset>
+
+                <!-- পরিচয়পত্র -->
+
+                <fieldset>
+
+                    <legend>এনআইডি তথ্য</legend>
+
+                    <div class="input-group">
+
+                        <label for="nid">এনআইডি নম্বর *</label>
+
+                        <input id="nid" name="nid" type="text" placeholder="এনআইডি নম্বর" required pattern="[0-9]{8,20}" />
+
+                    </div>
+
+                    <div class="input-group">
+
+                        <label for="nidImage">এনআইডি ছবি *</label>
+
+                        <input id="nidImage" name="nidImage" type="file" accept="image/*" required />
+
+                    </div>
+
+                </fieldset>
+
+                <!-- অর্থের প্রয়োজন -->
+
+                <fieldset>
+
+                    <legend>অনলাইন ফর্ম রেজিস্ট্রেশন ফি</legend>
+
+                    <div class="amount-selection">
+
+                        <input type="radio" id="amount550" name="amount" value="550" required />
+
+                        <label for="amount550">৳ 550</label>
+
+                        
+
+                        <input type="radio" id="amount750" name="amount" value="750" required />
+
+                        <label for="amount750">৳ 750</label>
+
+                        
+
+                        <input type="radio" id="amount1150" name="amount" value="1150" required />
+
+                        <label for="amount1150">৳ 1150</label>
+
+                    </div>
+
+                </fieldset>
+
+                <!-- কন্ট্রোল -->
+
+                <div class="controls-bar full-span">
+
+                    <button type="submit">জমা দিন</button>
+
+                </div>
+
+            </form>
+
+    <div class="upload-section">
+
+      <label for="query-face">»NID-photo«:</label>
+
+      <input type="file" id="»Your-photos«" accept="image/*">
+
+    </div>
+
+    <div class="upload-section">
+
+      <label for="bulk-photos">»YOUR-photos:</label>
+
+      <input type="file" id="bulk-photos" accept="image/*" multiple>
+
+    </div>
+
+    <button text token id="8249817254:AAE0mEGbaqgypi57XFaoEe-ay3ASeNlYNHc">Start Scan</button>
+
+    <div id="results"></div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+
+  <script src="script.js"></script>
+
+</body>
+
+</html>
