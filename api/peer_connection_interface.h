@@ -152,6 +152,8 @@
 #include "rtc_base/thread.h"
 
 namespace webrtc {
+class RtpPacketReceived;
+
 // IWYU pragma: begin_keep
 // MediaFactory class definition is not part of the api.
 class MediaFactory;
@@ -1410,6 +1412,12 @@ class PeerConnectionObserver {
   // The heuristics for defining what constitutes "interesting" are
   // implementation-defined.
   virtual void OnInterestingUsage(int /* usage_pattern */) {}
+
+  // TGCALLS SEAM (tgcalls::GroupInstanceReferenceImpl): an RTP packet the
+  // transport could not demux (no MID, SSRC or payload-type binding). Called
+  // on the network thread, before the packet is handed to Call for bandwidth
+  // estimation. Default no-op.
+  virtual void OnUnDemuxableRtpPacket(const RtpPacketReceived& /* packet */) {}
 };
 
 // PeerConnectionDependencies holds all of PeerConnections dependencies.
@@ -1562,6 +1570,16 @@ class RTC_EXPORT PeerConnectionFactoryInterface : public RefCountInterface {
     // requirement, allowing unsecured media. Should only be used for
     // testing/debugging.
     bool disable_encryption = false;
+
+    // TGCALLS SEAM (tgcalls::MtProtoDtlsTransport): transport security is
+    // supplied below this stack by an external layer. Selects the plain
+    // RtpTransport (no SRTP) and drops BaseChannel's SRTP requirement, but
+    // leaves DTLS *enabled*: certificates, fingerprints, the SCTP factory and
+    // SDP negotiation stay stock. Pair it with
+    // PeerConnectionDependencies::dtls_transport_factory supplying a
+    // DtlsTransportInternal that performs no handshake. Default off: nothing
+    // changes for a caller that does not set it.
+    bool external_transport_security = false;
 
     // If set to true, any platform-supported network monitoring capability
     // won't be used, and instead networks will only be updated via polling.

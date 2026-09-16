@@ -642,7 +642,7 @@ class PeerConnection : public PeerConnectionInternal,
   InitializeRtcpCallback();
 
   absl::AnyInvocable<void(const RtpPacketReceived& parsed_packet) const>
-  InitializeUnDemuxablePacketHandler();
+  InitializeUnDemuxablePacketHandler(PeerConnectionObserver* observer);
 
   // Runs a task on the signaling thread. If the current thread is the signaling
   // thread, the task will run immediately. Otherwise it will be posted to the

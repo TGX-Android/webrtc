@@ -626,7 +626,10 @@ PeerConnection::InitializeNetworkThread(
   config.redetermine_role_on_ice_restart =
       configuration_.redetermine_role_on_ice_restart;
   config.ssl_max_version = options_.ssl_max_version;
-  config.disable_encryption = options_.disable_encryption;
+  // TGCALLS SEAM (Options::external_transport_security): the plain
+  // RtpTransport without turning DTLS off at the PeerConnection level.
+  config.disable_encryption =
+      options_.disable_encryption || options_.external_transport_security;
   config.bundle_policy = configuration_.bundle_policy;
   config.rtcp_mux_policy = configuration_.rtcp_mux_policy;
   config.crypto_options = configuration_.crypto_options;
@@ -635,7 +638,8 @@ PeerConnection::InitializeNetworkThread(
   config.crypto_options.ephemeral_key_exchange_cipher_groups.Update(&trials());
   config.transport_observer = this;
   config.rtcp_handler = InitializeRtcpCallback();
-  config.un_demuxable_packet_handler = InitializeUnDemuxablePacketHandler();
+  config.un_demuxable_packet_handler =
+      InitializeUnDemuxablePacketHandler(observer_);
 
   // DTLS has to be enabled to use SCTP.
   if (dtls_enabled_) {
@@ -2949,7 +2953,9 @@ void PeerConnection::ReportRemoteIceCandidateAdded(const Candidate& candidate) {
 
 bool PeerConnection::SrtpRequired() const {
   RTC_DCHECK_RUN_ON(signaling_thread());
-  return dtls_enabled_;
+  // TGCALLS SEAM (Options::external_transport_security): SRTP is not required
+  // when an external layer secures the transport; DTLS stays enabled for SDP.
+  return dtls_enabled_ && !options_.external_transport_security;
 }
 
 void PeerConnection::OnTransportControllerGatheringState(
@@ -3243,9 +3249,17 @@ PeerConnection::InitializeRtcpCallback() {
 }
 
 absl::AnyInvocable<void(const RtpPacketReceived& parsed_packet) const>
-PeerConnection::InitializeUnDemuxablePacketHandler() {
-  return [this](const RtpPacketReceived& parsed_packet) {
+PeerConnection::InitializeUnDemuxablePacketHandler(
+    PeerConnectionObserver* observer) {
+  return [this, observer](const RtpPacketReceived& parsed_packet) {
     RTC_DCHECK_RUN_ON(network_thread());
+    // TGCALLS SEAM (PeerConnectionObserver::OnUnDemuxableRtpPacket): the
+    // observer outlives this PeerConnection by API contract, and Close()
+    // destroys the transport controller before clearing the observer, so no
+    // packet can reach here afterwards. Network thread, per dropped packet.
+    if (observer) {
+      observer->OnUnDemuxableRtpPacket(parsed_packet);
+    }
     // Deliver the packet anyway to Call to allow Call to do BWE.
     // Even if there is no media receiver, the packet has still
     // been received on the network and has been correctly parsed.
