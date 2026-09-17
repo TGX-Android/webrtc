@@ -431,6 +431,7 @@ class PeerConnection : public PeerConnectionInternal,
 
   bool CreateDataChannelTransport(absl::string_view mid) override;
   void DestroyDataChannelTransport(RTCError error) override;
+  void ResetSctpDataMidAfterRollback() override;
 
   // Synchronously calls SctpTransport::Start() on the network thread for
   // `sctp_mid()` if set. Called as part of pushing down the media descriptions

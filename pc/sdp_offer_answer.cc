@@ -4098,6 +4098,36 @@ RTCError SdpOfferAnswerHandler::Rollback(SdpType desc_type) {
   transceivers()->DiscardStableStates();
   pending_local_description_.reset();
   pending_remote_description_.reset();
+
+  // TGCALLS SEAM (rollback releases an unnegotiated sctp_mid): if the
+  // description just rolled back was the only one carrying the data-channel
+  // m-section (typically the very first offer, rolled back by a colliding
+  // remote offer), `sctp_mid` now names an m-section that no stable
+  // description has - and that the remote offer may reuse for media. Left in
+  // place it wedges negotiation: CheckIfNegotiationIsNeeded() keeps returning
+  // true for the missing data section while GetOptionsForUnifiedPlanOffer()
+  // never adds one because `sctp_mid` is set. Release it so the next offer
+  // negotiates data afresh.
+  if (pc_->sctp_mid()) {
+    const std::string data_mid = *pc_->sctp_mid();
+    auto carries_active_data = [&](const SessionDescriptionInterface* desc) {
+      if (!desc) {
+        return false;
+      }
+      const ContentInfo* content =
+          desc->description()->GetContentByName(data_mid);
+      return content && !content->rejected && content->media_description() &&
+             content->media_description()->type() == MediaType::DATA;
+    };
+    if (!carries_active_data(current_local_description()) &&
+        !carries_active_data(current_remote_description())) {
+      RTC_LOG(LS_INFO) << "Rollback removed the only description carrying "
+                          "data mid="
+                       << data_mid << "; releasing it for renegotiation.";
+      pc_->ResetSctpDataMidAfterRollback();
+    }
+  }
+
   ChangeSignalingState(PeerConnectionInterface::kStable);
 
   if (auto* tracer = pc_->tracer()) {

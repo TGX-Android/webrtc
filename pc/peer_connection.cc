@@ -2375,6 +2375,29 @@ void PeerConnection::DestroyDataChannelTransport(RTCError error) {
   SetSctpTransportName("");
 }
 
+void PeerConnection::ResetSctpDataMidAfterRollback() {
+  // TGCALLS SEAM (rollback releases an unnegotiated sctp_mid): see
+  // PeerConnectionSdpMethods. Unlike DestroyDataChannelTransport this keeps
+  // the data channels alive (they never had a transport to lose), so
+  // HasDataChannels() stays true and the next offer re-adds a data section.
+  RTC_DCHECK_RUN_ON(signaling_thread());
+  network_thread()->BlockingCall([&] {
+    RTC_DCHECK_RUN_ON(network_thread());
+    if (sctp_mid_n_) {
+      RTC_LOG(LS_INFO) << "Releasing rolled-back data channel mid="
+                       << *sctp_mid_n_;
+      sctp_mid_n_.reset();
+    }
+    // JsepTransportCollection::RollbackTransports already dropped the mapping
+    // for a mid the rolled-back description introduced
+    // (map_change_callback_(mid, nullptr) -> OnTransportChanged(nullptr));
+    // repeat it unconditionally in case the mid was re-mapped meanwhile.
+    data_channel_controller_.OnTransportChanged(nullptr);
+  });
+  sctp_mid_s_.reset();
+  SetSctpTransportName("");
+}
+
 void PeerConnection::OnSctpDataChannelStateChanged(
     int channel_id,
     DataChannelInterface::DataState state) {
