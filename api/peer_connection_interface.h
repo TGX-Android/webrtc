@@ -674,6 +674,17 @@ class RTC_EXPORT PeerConnectionInterface : public RefCountInterface {
     // Added to be able to control rollout of this feature.
     bool enable_implicit_rollback = false;
 
+    // TGCALLS SEAM (tgcalls::GroupInstanceReferenceImpl): never demux incoming
+    // RTP by payload type. Unified Plan enables payload-type routing for the
+    // single receiving m= section of a kind whenever the MID header extension
+    // is not negotiated on it, so media that arrives before its own m= section
+    // is signaled lands on an unrelated channel and creates an "unsignaled"
+    // receive stream there. An endpoint that signals every SSRC in its m=
+    // sections and learns about new SSRCs from the packets the demuxer drops
+    // (see RtpTransportInternal::SetUnDemuxableRtpPacketReceivedHandler) wants
+    // those packets dropped instead of routed by payload type.
+    bool disable_payload_type_demuxing = false;
+
     // The delay before doing a usage histogram report for long-lived
     // PeerConnections. Used for testing only.
     std::optional<int> report_usage_pattern_delay_ms;
