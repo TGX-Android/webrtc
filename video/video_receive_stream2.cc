@@ -326,6 +326,7 @@ void VideoReceiveStream2::SetLocalSsrc(uint32_t local_ssrc) {
 
 void VideoReceiveStream2::Start() {
   RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
+  RTC_LOG(LS_WARNING) << "VRS2::Start() called, decoder_running_=" << decoder_running_;
 
   if (decoder_running_) {
     return;
@@ -675,6 +676,12 @@ void VideoReceiveStream2::SetDepacketizerToDecoderFrameTransformer(
 
 void VideoReceiveStream2::RequestKeyFrame(Timestamp now) {
   RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
+  {
+    static int count = 0;
+    if (++count <= 5) {
+      RTC_LOG(LS_WARNING) << "VRS2::RequestKeyFrame #" << count;
+    }
+  }
   // Called from RtpVideoStreamReceiver (rtp_video_stream_receiver_ is
   // ultimately responsible).
   rtp_video_stream_receiver_.RequestKeyFrame();
@@ -683,6 +690,13 @@ void VideoReceiveStream2::RequestKeyFrame(Timestamp now) {
 
 void VideoReceiveStream2::OnCompleteFrame(std::unique_ptr<EncodedFrame> frame) {
   RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
+  {
+    static int count = 0;
+    if (++count <= 5) {
+      RTC_LOG(LS_WARNING) << "VRS2::OnCompleteFrame #" << count
+          << " size=" << frame->size() << " type=" << static_cast<int>(frame->FrameType());
+    }
+  }
 
   if (absl::optional<VideoPlayoutDelay> playout_delay =
           frame->EncodedImage().PlayoutDelay()) {
@@ -747,6 +761,13 @@ bool VideoReceiveStream2::SetMinimumPlayoutDelay(int delay_ms) {
 
 void VideoReceiveStream2::OnEncodedFrame(std::unique_ptr<EncodedFrame> frame) {
   RTC_DCHECK_RUN_ON(&packet_sequence_checker_);
+  {
+    static int count = 0;
+    if (++count <= 5) {
+      RTC_LOG(LS_WARNING) << "VRS2::OnEncodedFrame #" << count
+          << " size=" << frame->size() << " type=" << static_cast<int>(frame->FrameType());
+    }
+  }
   Timestamp now = env_.clock().CurrentTime();
   const bool keyframe_request_is_due =
       !last_keyframe_request_ ||
@@ -848,6 +869,12 @@ VideoReceiveStream2::HandleEncodedFrameOnDecodeQueue(
 
   int64_t frame_id = frame->Id();
   int decode_result = DecodeAndMaybeDispatchEncodedFrame(std::move(frame));
+  {
+    static int dcount = 0;
+    if (++dcount <= 5) {
+      RTC_LOG(LS_WARNING) << "VRS2::decode_result=" << decode_result << " frame_id=" << frame_id;
+    }
+  }
   if (decode_result == WEBRTC_VIDEO_CODEC_OK ||
       decode_result == WEBRTC_VIDEO_CODEC_OK_REQUEST_KEYFRAME) {
     keyframe_required = false;

@@ -102,6 +102,14 @@ VCMDecodedFrameCallback::FindFrameInfo(uint32_t rtp_timestamp) {
 void VCMDecodedFrameCallback::Decoded(VideoFrame& decodedImage,
                                       absl::optional<int32_t> decode_time_ms,
                                       absl::optional<uint8_t> qp) {
+  {
+    static int dfc = 0;
+    if (++dfc <= 5) {
+      RTC_LOG(LS_WARNING) << "VCMDecodedFrameCallback::Decoded #" << dfc
+          << " " << decodedImage.width() << "x" << decodedImage.height()
+          << " ts=" << decodedImage.timestamp();
+    }
+  }
   RTC_DCHECK(_receiveCallback) << "Callback must not be null at this point";
   TRACE_EVENT_INSTANT1("webrtc", "VCMDecodedFrameCallback::Decoded",
                        "timestamp", decodedImage.timestamp());

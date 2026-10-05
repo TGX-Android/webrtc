@@ -389,7 +389,7 @@ class RtpVideoStreamReceiver2 : public LossNotificationSender,
       RTC_GUARDED_BY(packet_sequence_checker_);
   video_coding::H264SpsPpsTracker tracker_
       RTC_GUARDED_BY(packet_sequence_checker_);
-  video_coding::H265VpsSpsPpsTracker h265_tracker_;
+  video_coding::H265VpsSpsPpsTracker h265_tracker_
       RTC_GUARDED_BY(packet_sequence_checker_);
 
   // Maps payload id to the depacketizer.

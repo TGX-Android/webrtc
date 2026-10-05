@@ -11,6 +11,9 @@
 #ifndef COMMON_VIDEO_H265_PPS_PARSER_H_
 #define COMMON_VIDEO_H265_PPS_PARSER_H_
 
+#include <cstddef>
+#include <cstdint>
+
 #include "absl/types/optional.h"
 
 namespace rtc {

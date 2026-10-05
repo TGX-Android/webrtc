@@ -3571,6 +3571,13 @@ void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::StopReceiveStream() {
 void WebRtcVideoReceiveChannel::WebRtcVideoReceiveStream::OnFrame(
     const webrtc::VideoFrame& frame) {
   webrtc::MutexLock lock(&sink_lock_);
+  {
+    static int fc = 0;
+    if (++fc <= 3) {
+      RTC_LOG(LS_WARNING) << "WVRS::OnFrame #" << fc << " sink_=" << (sink_ ? "set" : "null")
+          << " " << frame.width() << "x" << frame.height();
+    }
+  }
 
   int64_t time_now_ms = rtc::TimeMillis();
   if (first_frame_timestamp_ < 0)
