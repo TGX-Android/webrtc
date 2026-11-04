@@ -115,9 +115,15 @@ int OpenSLESRecorder::InitRecording() {
     ALOGE("Failed to obtain SL Engine interface");
     return -1;
   }
-  initialized_ = CreateAudioRecorder();
+  // Fails without RECORD_AUDIO or while another app holds the microphone.
+  if (!CreateAudioRecorder()) {
+    ALOGE("Failed to create the audio recorder");
+    DestroyAudioRecorder();
+    return -1;
+  }
+  initialized_ = true;
   buffer_index_ = 0;
-  return initialized_ ? 0 : -1;
+  return 0;
 }
 
 bool OpenSLESRecorder::RecordingIsInitialized() const {
@@ -129,6 +135,10 @@ int OpenSLESRecorder::StartRecording() {
   RTC_DCHECK(thread_checker_.IsCurrent());
   RTC_DCHECK(initialized_);
   RTC_DCHECK(!recording_);
+  if (!recorder_ || !simple_buffer_queue_) {
+    ALOGE("No audio recorder to start");
+    return -1;
+  }
   if (fine_audio_buffer_) {
     fine_audio_buffer_->ResetRecord();
   }
@@ -334,8 +344,11 @@ void OpenSLESRecorder::DestroyAudioRecorder() {
   RTC_DCHECK(thread_checker_.IsCurrent());
   if (!recorder_object_.Get())
     return;
-  (*simple_buffer_queue_)
-      ->RegisterCallback(simple_buffer_queue_, nullptr, nullptr);
+  // A recorder that failed to realize has no buffer queue.
+  if (simple_buffer_queue_) {
+    (*simple_buffer_queue_)
+        ->RegisterCallback(simple_buffer_queue_, nullptr, nullptr);
+  }
   recorder_object_.Reset();
   recorder_ = nullptr;
   simple_buffer_queue_ = nullptr;
