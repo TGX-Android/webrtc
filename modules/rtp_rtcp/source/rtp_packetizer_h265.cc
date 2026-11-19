@@ -192,6 +192,12 @@ int RtpPacketizerH265::PacketizeAp(size_t fragment_index) {
 
     // Next fragment.
     ++fragment_index;
+    // TGCALLS PATCH (H.265 without aggregation packets): one NAL unit per
+    // packet, as Telegram's earlier builds (Intel's H.265 RTP code) send. Those
+    // builds read an aggregation packet's payload header as one byte and drop
+    // the packet, and with it the VPS/SPS/PPS of every keyframe, so they would
+    // get no H.265 video from this sender.
+    break;
     if (fragment_index == input_fragments_.size()) {
       break;
     }
