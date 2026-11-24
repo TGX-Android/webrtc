@@ -12,8 +12,11 @@
 
 #include "api/environment/environment.h"
 #include "api/video_codecs/builtin_video_decoder_factory.h"
+#include "api/video_codecs/sdp_video_format.h"
+#include "api/video_codecs/video_codec.h"
 #include "api/video_codecs/video_decoder.h"
 #include "api/video_codecs/video_decoder_factory.h"
+#include "modules/video_coding/codecs/h264/include/h264.h"
 #include "sdk/android/generated_swcodecs_jni/SoftwareVideoDecoderFactory_jni.h"
 #include "sdk/android/native_api/jni/java_types.h"
 #include "sdk/android/src/jni/jni_helpers.h"
@@ -31,9 +34,14 @@ jboolean JNI_SoftwareVideoDecoderFactory_IsSupported(
     JNIEnv* env,
     jlong j_factory,
     const JavaParamRef<jobject>& j_info) {
-  return VideoCodecInfoToSdpVideoFormat(env, j_info)
-      .IsCodecInList(reinterpret_cast<VideoDecoderFactory*>(j_factory)
-                         ->GetSupportedFormats());
+  const SdpVideoFormat format = VideoCodecInfoToSdpVideoFormat(env, j_info);
+  // H264 stays listed without this decoder: the platform decodes it.
+  if (PayloadStringToCodecType(format.name) == kVideoCodecH264 &&
+      !H264Decoder::IsSupported()) {
+    return false;
+  }
+  return format.IsCodecInList(
+      reinterpret_cast<VideoDecoderFactory*>(j_factory)->GetSupportedFormats());
 }
 
 jlong JNI_SoftwareVideoDecoderFactory_Create(

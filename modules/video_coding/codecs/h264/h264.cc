@@ -164,7 +164,11 @@ std::unique_ptr<H264Decoder> H264Decoder::Create() {
 }
 
 bool H264Decoder::IsSupported() {
+#if defined(WEBRTC_USE_H264_DECODER)
   return IsH264CodecSupported();
+#else
+  return false;
+#endif
 }
 
 }  // namespace webrtc
