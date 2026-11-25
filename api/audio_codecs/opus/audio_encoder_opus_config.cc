@@ -36,6 +36,10 @@ bool AudioEncoderOpusConfig::IsOk() const {
     return false;
   if (low_rate_complexity < 0 || low_rate_complexity > 10)
     return false;
+  if (dred_duration_10ms < 0 || dred_duration_10ms > 104)
+    return false;
+  if (fixed_packet_loss_percent < 0 || fixed_packet_loss_percent > 100)
+    return false;
   return true;
 }
 }  // namespace webrtc

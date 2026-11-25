@@ -135,6 +135,17 @@ int16_t WebRtcOpus_SetBitRate(OpusEncInst* inst, int32_t rate);
 int16_t WebRtcOpus_SetPacketLossRate(OpusEncInst* inst, int32_t loss_rate);
 
 /****************************************************************************
+ * WebRtcOpus_SetDredDuration(...)  (TGCALLS PATCH: Opus DRED)
+ *
+ * The most 10 ms frames of DRED (Deep REDundancy) the encoder may add to each
+ * packet; 0 turns DRED off.
+ *
+ * Return value              :  0 - Success
+ *                             -1 - Error
+ */
+int16_t WebRtcOpus_SetDredDuration(OpusEncInst* inst, int32_t duration_10ms);
+
+/****************************************************************************
  * WebRtcOpus_SetMaxPlaybackRate(...)
  *
  * Configures the maximum playback rate for encoding. Due to hardware
@@ -395,6 +406,59 @@ int16_t WebRtcOpus_MultistreamDecoderCreate(
     const unsigned char* channel_mapping);
 
 int16_t WebRtcOpus_DecoderFree(OpusDecInst* inst);
+
+/****************************************************************************
+ * TGCALLS PATCH: Opus DRED.
+ *
+ * libopus is built without its neural weights (USE_WEIGHTS_FILE): DRED and
+ * the neural concealment take them from a blob (the one libopus's
+ * dnn/write_lpcnet_weights.c writes), which the caller keeps alive for the
+ * encoder's or decoder's lifetime (libopus reads the models in place).
+ *
+ * WebRtcOpus_DnnWeightsAreWellFormed(...): whether `weights` is such a blob,
+ * 4-byte aligned, every record whole. libopus parses a blob without checking
+ * the result and crashes on one that does not parse, so every blob is checked
+ * here first. Returns 1 or 0.
+ *
+ * WebRtcOpus_EncoderLoadDnnWeights(...): gives a single-stream encoder the
+ * weights, for DRED. Returns 0 on success, -1 when the blob is not well formed
+ * or libopus did not load it (the encoder then sends no DRED).
+ *
+ * WebRtcOpus_DecoderEnableDred(...): gives the decoder the weights (its neural
+ * concealment), creates a DRED decoder with them and sets decoder complexity
+ * 5 (libopus's neural concealment and DRED decoding need it). Single-stream
+ * decoders only. Returns 0 on success, -1 on error (nothing changed).
+ *
+ * WebRtcOpus_DredParse(...): parses the DRED of `encoded` into `dred`
+ * (processed at once, not deferred), looking back at most `max_samples`.
+ * Returns how many samples before the packet the DRED reaches (> 0), 0 when
+ * the packet carries none, < 0 on error. `dred_end` receives the number of
+ * samples right before the packet that the DRED leaves silent.
+ *
+ * WebRtcOpus_DredDecode(...): decodes `samples_per_channel` samples of `dred`
+ * starting `offset_samples` before the packet that carried it, into
+ * `decoded`, continuing the decoder's own state. Returns the samples per
+ * channel decoded, < 0 on error.
+ */
+int WebRtcOpus_DnnWeightsAreWellFormed(const uint8_t* weights,
+                                       size_t weights_size);
+int16_t WebRtcOpus_EncoderLoadDnnWeights(OpusEncInst* inst,
+                                         const uint8_t* weights,
+                                         size_t weights_size);
+int16_t WebRtcOpus_DecoderEnableDred(OpusDecInst* inst,
+                                     const uint8_t* weights,
+                                     size_t weights_size);
+int WebRtcOpus_DredParse(OpusDecInst* inst,
+                         OpusDRED* dred,
+                         const uint8_t* encoded,
+                         size_t encoded_len,
+                         int max_samples,
+                         int* dred_end);
+int WebRtcOpus_DredDecode(OpusDecInst* inst,
+                          const OpusDRED* dred,
+                          int offset_samples,
+                          int16_t* decoded,
+                          int samples_per_channel);
 
 /****************************************************************************
  * WebRtcOpus_DecoderChannels(...)

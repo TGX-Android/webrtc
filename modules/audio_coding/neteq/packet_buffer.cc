@@ -352,6 +352,10 @@ bool PacketBuffer::ContainsDtxOrCngPacket(
 }
 
 void PacketBuffer::LogPacketDiscarded(int codec_level) {
+  // TGCALLS PATCH: Opus DRED. Audio rebuilt from DRED is not FEC.
+  if (codec_level == AudioDecoder::kDredPriority) {
+    return;
+  }
   if (codec_level > 0) {
     stats_->SecondaryPacketsDiscarded(1);
   } else {

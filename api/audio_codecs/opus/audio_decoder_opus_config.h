@@ -11,7 +11,11 @@
 #ifndef API_AUDIO_CODECS_OPUS_AUDIO_DECODER_OPUS_CONFIG_H_
 #define API_AUDIO_CODECS_OPUS_AUDIO_DECODER_OPUS_CONFIG_H_
 
+#include <stdint.h>
+
+#include <memory>
 #include <optional>
+#include <vector>
 
 #include "rtc_base/system/rtc_export.h"
 
@@ -28,6 +32,10 @@ struct RTC_EXPORT AudioDecoderOpusConfig {
 
   int sample_rate_hz = 48'000;
   std::optional<int> num_channels;
+  // TGCALLS PATCH: Opus DRED. libopus's neural weights (AudioEncoderOpusConfig::dnn_weights): with
+  // WebRTC-Audio-OpusDred the decoder rebuilds lost audio from DRED, and conceals with the neural concealment, only
+  // with a well-formed blob. Kept for the decoder's lifetime.
+  std::shared_ptr<const std::vector<uint8_t>> dnn_weights;
 };
 
 }  // namespace webrtc

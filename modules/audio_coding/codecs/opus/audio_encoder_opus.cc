@@ -615,6 +615,14 @@ size_t AudioEncoderOpusImpl::SamplesPer10msFrame() const {
   return CheckedDivExact(config_.sample_rate_hz, 100) * config_.num_channels;
 }
 
+int32_t AudioEncoderOpusImpl::PacketLossPercentForOpus() const {
+  // TGCALLS PATCH: Opus DRED.
+  if (config_.fixed_packet_loss_percent > 0) {
+    return config_.fixed_packet_loss_percent;
+  }
+  return static_cast<int32_t>(packet_loss_rate_ * 100 + .5);
+}
+
 size_t AudioEncoderOpusImpl::SufficientOutputBufferSize() const {
   // Calculate the number of bytes we expect the encoder to produce,
   // then multiply by two to give a wide margin for error.
@@ -622,7 +630,9 @@ size_t AudioEncoderOpusImpl::SufficientOutputBufferSize() const {
       static_cast<size_t>(GetBitrateBps(config_) / (1000 * 8) + 1);
   const size_t approx_encoded_bytes =
       Num10msFramesPerPacket() * 10 * bytes_per_millisecond;
-  return 2 * approx_encoded_bytes;
+  // TGCALLS PATCH: Opus DRED. Headroom for the DRED extension in the padding.
+  const size_t dred_bytes = config_.dred_duration_10ms > 0 ? 200 : 0;
+  return 2 * approx_encoded_bytes + dred_bytes;
 }
 
 // If the given config is OK, recreate the Opus encoder instance with those
@@ -669,9 +679,32 @@ bool AudioEncoderOpusImpl::RecreateEncoderInstance() {
   } else {
     RTC_CHECK_EQ(WebRtcOpus_DisableDtx(inst_), 0);
   }
-  RTC_CHECK_EQ(WebRtcOpus_SetPacketLossRate(
-                   inst_, static_cast<int32_t>(packet_loss_rate_ * 100 + .5)),
+  RTC_CHECK_EQ(WebRtcOpus_SetPacketLossRate(inst_, PacketLossPercentForOpus()),
                0);
+  // TGCALLS PATCH: Opus DRED. libopus is built without its neural weights:
+  // DRED only with a blob it loads, else none (and no bitrate set aside).
+  int dred_duration_10ms = config_.dred_duration_10ms;
+  if (dred_duration_10ms > 0 &&
+      (!config_.dnn_weights ||
+       WebRtcOpus_EncoderLoadDnnWeights(inst_, config_.dnn_weights->data(),
+                                        config_.dnn_weights->size()) != 0)) {
+    RTC_LOG(LS_WARNING) << "Opus encoder: DRED requested but "
+                        << (config_.dnn_weights ? "the weights are not usable"
+                                                : "there are no weights")
+                        << ": no DRED";
+    dred_duration_10ms = 0;
+  }
+  RTC_CHECK_EQ(WebRtcOpus_SetDredDuration(inst_, dred_duration_10ms), 0);
+  if (dred_duration_10ms > 0) {
+    RTC_LOG(LS_INFO) << "Opus encoder with DRED: "
+                     << config_.dred_duration_10ms * 10 << " ms, loss figure "
+                     << PacketLossPercentForOpus() << "%"
+                     << (config_.fixed_packet_loss_percent > 0 ? " (fixed)"
+                                                               : "")
+                     << ", " << bitrate << " bps, in-band FEC "
+                     << (config_.fec_enabled ? "on" : "off") << ", "
+                     << config_.frame_size_ms << " ms frames";
+  }
   if (config_.cbr_enabled) {
     RTC_CHECK_EQ(WebRtcOpus_EnableCbr(inst_), 0);
   } else {
@@ -707,9 +740,11 @@ void AudioEncoderOpusImpl::SetProjectedPacketLossRate(float fraction) {
   fraction = std::min(std::max(fraction, 0.0f), kMaxPacketLossFraction);
   if (packet_loss_rate_ != fraction) {
     packet_loss_rate_ = fraction;
-    RTC_CHECK_EQ(WebRtcOpus_SetPacketLossRate(
-                     inst_, static_cast<int32_t>(packet_loss_rate_ * 100 + .5)),
-                 0);
+    // TGCALLS PATCH: Opus DRED. A fixed figure stays what libopus is told.
+    if (config_.fixed_packet_loss_percent == 0) {
+      RTC_CHECK_EQ(WebRtcOpus_SetPacketLossRate(inst_, PacketLossPercentForOpus()),
+                   0);
+    }
   }
 }
 

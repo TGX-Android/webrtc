@@ -12,7 +12,9 @@
 #define API_AUDIO_CODECS_OPUS_AUDIO_ENCODER_OPUS_CONFIG_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -47,6 +49,19 @@ struct RTC_EXPORT AudioEncoderOpusConfig {
   std::optional<int> bitrate_bps = 32'000;
 
   bool fec_enabled = false;
+
+  // TGCALLS PATCH: Opus DRED (Deep REDundancy), the 10 ms frames of redundancy libopus may add to each packet:
+  // 0 = off, at most 104 (~1 s). libopus sizes it, like in-band FEC, from the loss figure, and adds none at 0%.
+  int dred_duration_10ms = 0;
+  // TGCALLS PATCH: Opus DRED. A loss figure (percent) given to libopus in place of the measured uplink loss, from the
+  // first packet on; 0 = the measured figure, as upstream. A group-call sender never learns about loss on the
+  // listeners' legs, so it fixes the figure to keep DRED's rate fixed.
+  int fixed_packet_loss_percent = 0;
+  // TGCALLS PATCH: Opus DRED. libopus's neural weights (the blob its dnn/write_lpcnet_weights.c writes): libopus is
+  // built without them (USE_WEIGHTS_FILE), and DRED needs them. With none, or a blob that is not well formed, the
+  // encoder sends no DRED whatever dred_duration_10ms says. Kept for the encoder's lifetime: libopus reads the
+  // models in place.
+  std::shared_ptr<const std::vector<uint8_t>> dnn_weights;
   bool cbr_enabled = false;
   int max_playback_rate_hz = 48'000;
 

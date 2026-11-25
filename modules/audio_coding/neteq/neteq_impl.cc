@@ -55,6 +55,7 @@
 #include "modules/audio_coding/neteq/sync_buffer.h"
 #include "modules/audio_coding/neteq/time_stretch.h"
 #include "modules/audio_coding/neteq/timestamp_scaler.h"
+#include "modules/include/module_common_types_public.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
@@ -229,6 +230,8 @@ int NetEqImpl::InsertPacket(const RTPHeader& rtp_header,
     // Flush the packet buffer and DTMF buffer.
     packet_buffer_->Flush();
     dtmf_buffer_->Flush();
+    // TGCALLS PATCH: Opus DRED. A new stream has no gap before it.
+    newest_primary_.reset();
 
     // Update audio buffer timestamp.
     sync_buffer_->IncreaseEndTimestamp(main_timestamp - timestamp_);
@@ -321,9 +324,80 @@ int NetEqImpl::InsertPacket(const RTPHeader& rtp_header,
         return new_packet;
       };
 
+      // TGCALLS PATCH: Opus DRED. Packets missing by sequence number between
+      // the newest packet and this one lost audio from the newest packet's end
+      // (not from what NetEq has played: a stretch it already concealed is
+      // still rebuilt, and played late). A timestamp jump with contiguous
+      // sequence numbers (a muted sender) loses nothing.
+      AudioDecoder* decoder = info->GetDecoder();
+      const int duration =
+          decoder->PacketDuration(packet.payload.data(), packet.payload.size());
+      const uint32_t packet_duration =
+          duration > 0 ? static_cast<uint32_t>(duration) : 0;
+      const Timestamp now = env_.clock().CurrentTime();
+      uint32_t missing_samples = 0;
+      const bool same_stream =
+          newest_primary_ && newest_primary_->payload_type == payload_type;
+      const bool newer_sequence =
+          same_stream && IsNewerSequenceNumber(
+                             sequence_number, newest_primary_->sequence_number);
+      // Numbers that read as older with a newer timestamp: the sender
+      // restarted its sequence numbers. Follow them (no gap is measured).
+      const bool restarted =
+          same_stream && !newer_sequence &&
+          sequence_number != newest_primary_->sequence_number &&
+          IsNewerTimestamp(packet.timestamp, newest_primary_->timestamp);
+      if (newer_sequence) {
+        const uint16_t lost = static_cast<uint16_t>(
+            sequence_number - newest_primary_->sequence_number - 1);
+        const uint32_t known_end =
+            newest_primary_->timestamp + newest_primary_->duration;
+        if (lost > 0 && IsNewerTimestamp(packet.timestamp, known_end)) {
+          missing_samples =
+              std::min<uint32_t>(packet.timestamp - known_end,
+                                 static_cast<uint32_t>(lost) * packet_duration);
+        }
+        // A loss followed by a stall (this packet arriving over 1 s later
+        // than the timestamps say it was sent after the newest one): the lost
+        // tail would play stale, after the stall. Not rebuilt. A mute is no
+        // stall: the pause is in the timestamps too.
+        const int sample_rate_hz = decoder->SampleRateHz();
+        if (missing_samples > 0 && sample_rate_hz > 0) {
+          const TimeDelta sent_apart = TimeDelta::Millis(
+              int64_t{packet.timestamp - newest_primary_->timestamp} * 1000 /
+              sample_rate_hz);
+          if (now - newest_primary_->arrival_time >
+              sent_apart + TimeDelta::Seconds(1)) {
+            missing_samples = 0;
+          }
+        }
+        // A full packet buffer is flushed whole, the primary with it: the
+        // rebuilt 10 ms pieces take at most half of the room left.
+        if (missing_samples > 0 && sample_rate_hz > 0) {
+          const size_t capacity = packet_buffer_->MaxNumberOfPackets();
+          const size_t used = packet_buffer_->NumPacketsInBuffer() + 2;
+          const size_t pieces = capacity > used ? (capacity - used) / 2 : 0;
+          missing_samples = std::min<uint32_t>(
+              missing_samples,
+              static_cast<uint32_t>(pieces) *
+                  static_cast<uint32_t>(sample_rate_hz / 100));
+        }
+      }
+      if (!same_stream || newer_sequence || restarted) {
+        newest_primary_ = NewestPrimaryPacket{
+            .sequence_number = sequence_number,
+            .timestamp = packet.timestamp,
+            .duration = packet_duration,
+            .payload_type = payload_type,
+            .arrival_time = now};
+      }
+
       std::vector<AudioDecoder::ParseResult> results =
-          info->GetDecoder()->ParsePayload(std::move(packet.payload),
-                                           packet.timestamp);
+          missing_samples > 0
+              ? decoder->ParsePayloadWithGap(std::move(packet.payload),
+                                             packet.timestamp, missing_samples)
+              : decoder->ParsePayload(std::move(packet.payload),
+                                      packet.timestamp);
       if (results.empty()) {
         packet_list.pop_front();
       } else {
@@ -346,17 +420,30 @@ int NetEqImpl::InsertPacket(const RTPHeader& rtp_header,
   }
 
   // Calculate the number of primary (non-FEC/RED) packets.
+  // TGCALLS PATCH: Opus DRED. Audio rebuilt from DRED is not FEC: it stays out
+  // of the secondary (FEC) packet count.
   const size_t number_of_primary_packets = std::count_if(
       parsed_packet_list.begin(), parsed_packet_list.end(),
       [](const Packet& in) { return in.priority.codec_level == 0; });
-  if (number_of_primary_packets < parsed_packet_list.size()) {
+  const size_t number_of_dred_frames = std::count_if(
+      parsed_packet_list.begin(), parsed_packet_list.end(), [](const Packet& in) {
+        return in.priority.codec_level == AudioDecoder::kDredPriority;
+      });
+  if (number_of_primary_packets + number_of_dred_frames <
+      parsed_packet_list.size()) {
     stats_->SecondaryPacketsReceived(parsed_packet_list.size() -
-                                     number_of_primary_packets);
+                                     number_of_primary_packets -
+                                     number_of_dred_frames);
   }
 
   const int target_level_ms = controller_->TargetLevelMs();
   for (Packet& packet : parsed_packet_list) {
     NetEqController::PacketArrivedInfo info = ToPacketArrivedInfo(packet);
+    // TGCALLS PATCH: Opus DRED. Audio rebuilt from DRED (codec level 2)
+    // carries timestamps up to 1 s old; counted as arrivals it would look that
+    // late and raise the target delay for good.
+    const bool rebuilt_from_dred =
+        packet.priority.codec_level == AudioDecoder::kDredPriority;
     if (MaybeChangePayloadType(packet.payload_type)) {
       packet_buffer_->Flush();
       new_codec_ = true;
@@ -384,7 +471,7 @@ int NetEqImpl::InsertPacket(const RTPHeader& rtp_header,
       return kFail;
     }
 
-    const bool should_update_stats = !new_codec_;
+    const bool should_update_stats = !new_codec_ && !rebuilt_from_dred;
     auto relative_delay =
         controller_->PacketArrived(fs_hz_, should_update_stats, info);
     if (relative_delay) {

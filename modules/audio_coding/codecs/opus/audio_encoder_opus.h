@@ -136,6 +136,8 @@ class AudioEncoderOpusImpl final : public AudioEncoder {
   size_t Num10msFramesPerPacket() const;
   size_t SamplesPer10msFrame() const;
   size_t SufficientOutputBufferSize() const;
+  // The loss figure (percent) libopus is told: the fixed one when set, else the measured one.
+  int32_t PacketLossPercentForOpus() const;
   bool RecreateEncoderInstance(AudioEncoderOpusConfig config);
   bool RecreateEncoderInstance();
   void SetFrameLength(int frame_length_ms);

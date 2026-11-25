@@ -87,6 +87,13 @@ std::vector<AudioDecoder::ParseResult> AudioDecoder::ParsePayload(
   return results;
 }
 
+std::vector<AudioDecoder::ParseResult> AudioDecoder::ParsePayloadWithGap(
+    Buffer&& payload,
+    uint32_t timestamp,
+    uint32_t /* missing_samples */) {
+  return ParsePayload(std::move(payload), timestamp);
+}
+
 int AudioDecoder::Decode(const uint8_t* encoded,
                          size_t encoded_len,
                          int sample_rate_hz,

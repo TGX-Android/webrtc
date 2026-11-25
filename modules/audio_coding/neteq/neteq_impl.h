@@ -375,6 +375,16 @@ class NetEqImpl : public NetEq {
   std::vector<RtpPacketInfo> last_decoded_packet_infos_;
   bool no_time_stretching_;  // Only used for test.
   BufferT<int16_t> concealment_audio_;
+  // TGCALLS PATCH: Opus DRED. The newest primary packet inserted, to tell the
+  // decoder how much audio a sequence-number gap before a packet lost.
+  struct NewestPrimaryPacket {
+    uint16_t sequence_number;
+    uint32_t timestamp;
+    uint32_t duration;
+    uint8_t payload_type;
+    Timestamp arrival_time;
+  };
+  std::optional<NewestPrimaryPacket> newest_primary_;
 };
 
 }  // namespace webrtc

@@ -130,6 +130,9 @@ class PacketBuffer {
   // redundant packets.
   virtual size_t NumPacketsInBuffer() const;
 
+  // TGCALLS PATCH: Opus DRED. The capacity: a buffer this full is flushed.
+  size_t MaxNumberOfPackets() const { return max_number_of_packets_; }
+
   // Returns the number of samples in the buffer, including samples carried in
   // duplicate and redundant packets.
   virtual size_t NumSamplesInBuffer(size_t last_decoded_length) const;

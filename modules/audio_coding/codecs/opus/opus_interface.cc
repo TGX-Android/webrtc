@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 #include "rtc_base/checks.h"
 
@@ -209,6 +210,14 @@ int16_t WebRtcOpus_SetBitRate(OpusEncInst* inst, int32_t rate) {
 int16_t WebRtcOpus_SetPacketLossRate(OpusEncInst* inst, int32_t loss_rate) {
   if (inst) {
     return ENCODER_CTL(inst, OPUS_SET_PACKET_LOSS_PERC(loss_rate));
+  } else {
+    return -1;
+  }
+}
+
+int16_t WebRtcOpus_SetDredDuration(OpusEncInst* inst, int32_t duration_10ms) {
+  if (inst) {
+    return ENCODER_CTL(inst, OPUS_SET_DRED_DURATION(duration_10ms));
   } else {
     return -1;
   }
@@ -459,6 +468,9 @@ int16_t WebRtcOpus_DecoderFree(OpusDecInst* inst) {
       opus_decoder_destroy(inst->decoder);
     } else if (inst->multistream_decoder) {
       opus_multistream_decoder_destroy(inst->multistream_decoder);
+    }
+    if (inst->dred_decoder) {
+      opus_dred_decoder_destroy(inst->dred_decoder);
     }
     free(inst);
     return 0;
@@ -738,4 +750,122 @@ int WebRtcOpus_PacketHasFec(const uint8_t* payload,
   }
 
   return 0;
+}
+
+// TGCALLS PATCH: Opus DRED. The records of libopus's weights blob, as
+// parse_record (dnn/parse_lpcnet_weights.c) reads them: a 64-byte WeightHead
+// ("DNNw", version, type, size, block_size, a 44-byte name ending in 0), then
+// block_size bytes holding size bytes of weights.
+int WebRtcOpus_DnnWeightsAreWellFormed(const uint8_t* weights,
+                                       size_t weights_size) {
+  constexpr size_t kHeadSize = 64;
+  if (!weights || weights_size == 0 || weights_size > INT32_MAX ||
+      reinterpret_cast<uintptr_t>(weights) % 4 != 0) {
+    return 0;
+  }
+  size_t offset = 0;
+  while (offset < weights_size) {
+    const size_t remaining = weights_size - offset;
+    if (remaining < kHeadSize) {
+      return 0;
+    }
+    const uint8_t* head = weights + offset;
+    int32_t size = 0;
+    int32_t block_size = 0;
+    memcpy(&size, head + 12, sizeof(size));
+    memcpy(&block_size, head + 16, sizeof(block_size));
+    if (memcmp(head, "DNNw", 4) != 0 || head[kHeadSize - 1] != 0 ||
+        size <= 0 || block_size < size ||
+        static_cast<size_t>(block_size) > remaining - kHeadSize) {
+      return 0;
+    }
+    offset += kHeadSize + static_cast<size_t>(block_size);
+  }
+  return 1;
+}
+
+int16_t WebRtcOpus_EncoderLoadDnnWeights(OpusEncInst* inst,
+                                         const uint8_t* weights,
+                                         size_t weights_size) {
+  if (!inst || !inst->encoder ||
+      !WebRtcOpus_DnnWeightsAreWellFormed(weights, weights_size)) {
+    return -1;
+  }
+  return opus_encoder_ctl(inst->encoder,
+                          OPUS_SET_DNN_BLOB(weights, static_cast<opus_int32>(
+                                                         weights_size))) ==
+                 OPUS_OK
+             ? 0
+             : -1;
+}
+
+int16_t WebRtcOpus_DecoderEnableDred(OpusDecInst* inst,
+                                     const uint8_t* weights,
+                                     size_t weights_size) {
+  if (!inst || !inst->decoder ||
+      !WebRtcOpus_DnnWeightsAreWellFormed(weights, weights_size)) {
+    return -1;
+  }
+  const opus_int32 size = static_cast<opus_int32>(weights_size);
+  if (opus_decoder_ctl(inst->decoder, OPUS_SET_DNN_BLOB(weights, size)) !=
+      OPUS_OK) {
+    return -1;
+  }
+  if (!inst->dred_decoder) {
+    int error = OPUS_OK;
+    OpusDREDDecoder* dred_decoder = opus_dred_decoder_create(&error);
+    if (error != OPUS_OK || !dred_decoder) {
+      return -1;
+    }
+    if (opus_dred_decoder_ctl(dred_decoder, OPUS_SET_DNN_BLOB(weights, size)) !=
+        OPUS_OK) {
+      opus_dred_decoder_destroy(dred_decoder);
+      return -1;
+    }
+    inst->dred_decoder = dred_decoder;
+  }
+  if (opus_decoder_ctl(inst->decoder, OPUS_SET_COMPLEXITY(5)) != OPUS_OK) {
+    return -1;
+  }
+  return 0;
+}
+
+int WebRtcOpus_DredParse(OpusDecInst* inst,
+                         OpusDRED* dred,
+                         const uint8_t* encoded,
+                         size_t encoded_len,
+                         int max_samples,
+                         int* dred_end) {
+  if (!inst || !inst->dred_decoder || !dred || !encoded || encoded_len == 0) {
+    return -1;
+  }
+  return opus_dred_parse(inst->dred_decoder, dred, encoded,
+                         static_cast<opus_int32>(encoded_len), max_samples,
+                         inst->sample_rate_hz, dred_end,
+                         /*defer_processing=*/0);
+}
+
+int WebRtcOpus_DredDecode(OpusDecInst* inst,
+                          const OpusDRED* dred,
+                          int offset_samples,
+                          int16_t* decoded,
+                          int samples_per_channel) {
+  if (!inst || !inst->decoder || !dred) {
+    return -1;
+  }
+  const int decoded_samples_per_channel =
+      opus_decoder_dred_decode(inst->decoder, dred, offset_samples,
+                               reinterpret_cast<opus_int16*>(decoded),
+                               samples_per_channel);
+  if (decoded_samples_per_channel <= 0) {
+    return -1;
+  }
+  // As WebRtcOpus_Decode: a stereo decoder fed mono packets gets the left
+  // channel copied into the right one (https://issues.webrtc.org/376493209).
+  if (inst->channels == 2 && inst->last_packet_num_channels == 1) {
+    for (int i = 0; i < decoded_samples_per_channel * 2; i += 2) {
+      decoded[i + 1] = decoded[i];
+    }
+  }
+  return decoded_samples_per_channel;
 }

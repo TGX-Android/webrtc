@@ -85,7 +85,9 @@ std::unique_ptr<AudioDecoder> AudioDecoderOpus::MakeAudioDecoder(
   return std::make_unique<AudioDecoderOpusImpl>(
       env.field_trials(),
       config.num_channels.value_or(GetDefaultNumChannels(env.field_trials())),
-      config.sample_rate_hz);
+      config.sample_rate_hz,
+      // TGCALLS PATCH: Opus DRED.
+      std::move(config.dnn_weights));
 }
 
 }  // namespace webrtc

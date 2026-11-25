@@ -33,6 +33,8 @@ struct WebRtcOpusEncInst {
 struct WebRtcOpusDecInst {
   OpusDecoder* decoder;
   OpusMSDecoder* multistream_decoder;
+  // TGCALLS PATCH: Opus DRED. Set by WebRtcOpus_DecoderEnableDred.
+  OpusDREDDecoder* dred_decoder;
   size_t channels;
   int in_dtx_mode;
   int sample_rate_hz;

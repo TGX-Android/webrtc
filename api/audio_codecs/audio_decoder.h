@@ -94,6 +94,21 @@ class AudioDecoder {
   virtual std::vector<ParseResult> ParsePayload(Buffer&& payload,
                                                 uint32_t timestamp);
 
+  // TGCALLS PATCH: Opus DRED. The ParseResult priority of audio rebuilt from
+  // redundancy for older audio carried by a later packet (Opus DRED): below
+  // in-band FEC (1) and the primary (0). NetEq keeps such frames out of its
+  // arrival and FEC statistics.
+  static constexpr int kDredPriority = 2;
+
+  // TGCALLS PATCH: Opus DRED. Like ParsePayload, for a packet that follows
+  // `missing_samples` (per channel, RTP clock) of lost audio ending at
+  // `timestamp`. A decoder whose payload carries redundancy for older audio
+  // (Opus DRED) may add frames covering the end of that span, at a priority
+  // below in-band FEC. The default is ParsePayload.
+  virtual std::vector<ParseResult> ParsePayloadWithGap(Buffer&& payload,
+                                                       uint32_t timestamp,
+                                                       uint32_t missing_samples);
+
   // TODO(bugs.webrtc.org/10098): The Decode and DecodeRedundant methods are
   // obsolete; callers should call ParsePayload instead. For now, subclasses
   // must still implement DecodeInternal.
