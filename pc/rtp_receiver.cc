@@ -225,6 +225,10 @@ RtpReceiverBase::CreateSframeDecryptorOrError(
   RTC_DCHECK_RUN_ON(&signaling_thread_checker_);
   RTC_DCHECK(error_callback);
 
+#if defined(WEBRTC_WITHOUT_SFRAME)
+  return RTCError(RTCErrorType::UNSUPPORTED_OPERATION,
+                  "Sframe is not built in");
+#else
   if (stopped_) {
     return RTCError::InvalidState()
            << "Cannot create an Sframe decryptor on a stopped receiver.";
@@ -259,6 +263,7 @@ RtpReceiverBase::CreateSframeDecryptorOrError(
   // reported.
   return scoped_refptr<SframeDecryptorInterface>(SframeDecryptorHandle::Create(
       *TaskQueueBase::Current(), *network_thread_, std::move(decryptor)));
+#endif
 }
 
 }  // namespace webrtc

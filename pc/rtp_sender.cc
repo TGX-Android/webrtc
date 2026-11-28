@@ -1268,6 +1268,10 @@ RtpSenderBase::CreateSframeEncryptorOrError(
     const SframeEncryptorInit& options) {
   RTC_DCHECK_RUN_ON(signaling_thread_);
 
+#if defined(WEBRTC_WITHOUT_SFRAME)
+  return RTCError(RTCErrorType::UNSUPPORTED_OPERATION,
+                  "Sframe is not built in");
+#else
   if (stopped_) {
     return RTCError::InvalidState()
            << "Cannot create an Sframe encryptor on a stopped sender.";
@@ -1299,6 +1303,7 @@ RtpSenderBase::CreateSframeEncryptorOrError(
 
   return scoped_refptr<SframeEncryptorInterface>(SframeEncryptorProxy::Create(
       network_thread_, std::move(sframe_encryption_config.encryptor)));
+#endif
 }
 
 LocalAudioSinkAdapter::LocalAudioSinkAdapter() : sink_(nullptr) {}
