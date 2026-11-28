@@ -694,8 +694,9 @@ bool AudioEncoderOpusImpl::RecreateEncoderInstance() {
                         << ": no DRED";
     dred_duration_10ms = 0;
   }
-  RTC_CHECK_EQ(WebRtcOpus_SetDredDuration(inst_, dred_duration_10ms), 0);
+  // A new instance has no DRED, and libopus built without DRED refuses even 0
   if (dred_duration_10ms > 0) {
+    RTC_CHECK_EQ(WebRtcOpus_SetDredDuration(inst_, dred_duration_10ms), 0);
     RTC_LOG(LS_INFO) << "Opus encoder with DRED: "
                      << config_.dred_duration_10ms * 10 << " ms, loss figure "
                      << PacketLossPercentForOpus() << "%"
